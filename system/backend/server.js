@@ -4,9 +4,10 @@ const express = require('express');
 const mongoose = require('mongoose');
 const passport = require('passport');
 const session = require('express-session');
+const qrRoutes = require('./routes/qr');
 const cors = require('cors');
-
 require('./config/passport');
+
 
 const app = express();
 
@@ -34,6 +35,7 @@ mongoose.connect(process.env.MONGO_URI, {
 app.use('/auth', require('./routes/authRoutes'));
 app.use('/api/user', require('./routes/userRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/qr', qrRoutes);
 app.use('/api/event', require('./routes/eventRoutes'));
 
 const PORT = process.env.PORT || 5000;
