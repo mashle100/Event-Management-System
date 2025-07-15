@@ -42,10 +42,12 @@ function formatEvent(e, includeAttendees = false, userId = null) {
     registrationDeadline: e.registrationDeadline,
     requireApproval: e.requireApproval,
     enableWaitlist: e.enableWaitlist,
+    pendingApprovals: e.pendingApprovals?.map?.(u =>
+      typeof u === 'object' ? { _id: u._id, name: u.name, email: u.email } : u
+    ),
     pendingAttendees: e.pendingApprovals?.map?.(u =>
-  typeof u === 'object' ? { _id: u._id, name: u.name, email: u.email } : u
-),
-
+      typeof u === 'object' ? { _id: u._id, name: u.name, email: u.email } : u
+    ),
     waitlist: e.waitlist?.map?.(u =>
       typeof u === 'object' ? { _id: u._id, name: u.name, email: u.email } : u
     ),
@@ -182,7 +184,7 @@ exports.getMyEvents = async (req, res) => {
       await fillRegisteredInfoIfNeeded(event);
     }
 
-    res.json(events.map(e => formatEvent(e, false, req.user?.id)));
+    res.json(events.map(e => formatEvent(e, true, req.user?.id)));
  // attendees included
   } catch (err) {
     console.error('Get my events error:', err);
@@ -199,12 +201,26 @@ exports.registerForEvent = async (req, res) => {
 
     const userId = req.user.id;
 
-    if (
-      event.attendees.includes(userId) ||
-      event.pendingApprovals.includes(userId) ||
-      event.waitlist.includes(userId)
-    ) {
-      return res.status(400).json({ error: 'Already in process or registered' });
+    // Check current registration status and return appropriate response
+    if (event.attendees.includes(userId)) {
+      return res.status(200).json({ 
+        message: 'Already registered',
+        registrationStatus: 'registered'
+      });
+    }
+
+    if (event.pendingApprovals.includes(userId)) {
+      return res.status(200).json({ 
+        message: 'Registration pending approval',
+        registrationStatus: 'pending'
+      });
+    }
+
+    if (event.waitlist.includes(userId)) {
+      return res.status(200).json({ 
+        message: 'Already on waitlist',
+        registrationStatus: 'waitlist'
+      });
     }
 
     const isFull = event.attendees.length >= event.maxAttendees;

@@ -70,7 +70,7 @@ const CreateEvent = () => {
 
     setLoading(true);
     try {
-      await API.post('/event', payload);
+      await API.post('/events', payload);
       alert('Event created!');
       setEvent(initialEventState);
     } catch (err) {
@@ -81,333 +81,298 @@ const CreateEvent = () => {
   };
 
   return (
-    <div style={styles.container}>
-      <h2 style={styles.header}>Create New Event</h2>
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <label>Event Name: *</label>
-        <input
-          name="title"
-          value={event.title}
-          onChange={handleChange}
-          required
-          style={styles.input}
-          disabled={loading}
-        />
+    <div className="page-container">
+      <div className="container">
+        <div className="page-header">
+          <h1 className="page-title">Create New Event</h1>
+          <p className="page-subtitle">Fill out the form below to create and publish your event</p>
+        </div>
+        <form onSubmit={handleSubmit}>
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Event Name *</label>
+                <input
+                  name="title"
+                  value={event.title}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                  placeholder="Enter event name"
+                />
+              </div>
+              
+              <div className="form-group">
+                <label className="form-label">Category *</label>
+                <select 
+                  name="category" 
+                  value={event.category} 
+                  onChange={handleChange} 
+                  disabled={loading}
+                >
+                  <option value="Education">Education</option>
+                  <option value="Business">Business</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
 
-        <label>Event Description: *</label>
-        <textarea
-          name="description"
-          value={event.description}
-          onChange={handleChange}
-          required
-          style={styles.textarea}
-          disabled={loading}
-        />
+            <div className="form-group">
+              <label className="form-label">Event Description *</label>
+              <textarea
+                name="description"
+                value={event.description}
+                onChange={handleChange}
+                required
+                disabled={loading}
+                placeholder="Describe your event"
+                rows="4"
+              />
+            </div>
 
-        <label>Category: *</label>
-        <select
-          name="category"
-          value={event.category}
-          onChange={handleChange}
-          required
-          style={styles.input}
-          disabled={loading}
-        >
-          {['Tech', 'Sports', 'Cultural', 'Workshop', 'Seminar', 'Other'].map((cat) => (
-            <option key={cat} value={cat}>
-              {cat}
-            </option>
-          ))}
-        </select>
+            <div className="form-group">
+              <label className="form-label">Tags (comma-separated)</label>
+              <input
+                name="tags"
+                value={event.tags}
+                onChange={handleChange}
+                disabled={loading}
+                placeholder="e.g., networking, workshop, conference"
+              />
+            </div>
 
-        <label>
-          Tags (comma-separated): <i>(Optional)</i>
-        </label>
-        <input
-          name="tags"
-          value={event.tags}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-        />
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Start Date *</label>
+                <input
+                  name="date"
+                  type="date"
+                  value={event.date}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                />
+              </div>
 
-        <label>Event Date: *</label>
-        <input
-          type="date"
-          name="date"
-          value={event.date}
-          onChange={handleChange}
-          required
-          style={styles.input}
-          disabled={loading}
-        />
+              <div className="form-group">
+                <label className="form-label">End Date *</label>
+                <input
+                  name="endDate"
+                  type="date"
+                  value={event.endDate}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                />
+              </div>
 
-        <label>Start Time: *</label>
-        <input
-          type="time"
-          name="startTime"
-          value={event.startTime}
-          onChange={handleChange}
-          required
-          style={styles.input}
-          disabled={loading}
-        />
+              <div className="form-group">
+                <label className="form-label">Start Time *</label>
+                <input
+                  name="startTime"
+                  type="time"
+                  value={event.startTime}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                />
+              </div>
 
-        <label>Event End Date: *</label>
-        <input
-          type="date"
-          name="endDate"
-          value={event.endDate}
-          onChange={handleChange}
-          required
-          style={styles.input}
-          disabled={loading}
-        />
+              <div className="form-group">
+                <label className="form-label">End Time *</label>
+                <input
+                  name="endTime"
+                  type="time"
+                  value={event.endTime}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                />
+              </div>
+            </div>
 
-        <label>End Time: *</label>
-        <input
-          type="time"
-          name="endTime"
-          value={event.endTime}
-          onChange={handleChange}
-          required
-          style={styles.input}
-          disabled={loading}
-        />
+            <div className="form-group">
+              <label className="form-label">Event Type</label>
+              <select name="eventType" value={event.eventType} onChange={handleChange} disabled={loading}>
+                <option value="In-person">In-person</option>
+                <option value="Online">Online</option>
+                <option value="Hybrid">Hybrid</option>
+              </select>
+            </div>
 
-        <label>Event Type: *</label>
-        <select
-          name="eventType"
-          value={event.eventType}
-          onChange={handleChange}
-          required
-          style={styles.input}
-          disabled={loading}
-        >
-          {['Online', 'In-person', 'Hybrid'].map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </select>
+            {event.eventType !== 'Online' && (
+              <div className="form-grid">
+                <div className="form-group">
+                  <label className="form-label">Venue Name *</label>
+                  <input
+                    name="venueName"
+                    value={event.venueName}
+                    onChange={handleChange}
+                    disabled={loading}
+                    placeholder="Enter venue name"
+                  />
+                </div>
 
-        <label>
-          Venue Name: <i>(Required for In-person/Hybrid)</i>
-        </label>
-        <input
-          name="venueName"
-          value={event.venueName}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-        />
+                <div className="form-group">
+                  <label className="form-label">City *</label>
+                  <input
+                    name="city"
+                    value={event.city}
+                    onChange={handleChange}
+                    disabled={loading}
+                    placeholder="Enter city"
+                  />
+                </div>
 
-        <label>
-          Address: <i>(Optional)</i>
-        </label>
-        <input
-          name="address"
-          value={event.address}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-        />
+                <div className="form-group">
+                  <label className="form-label">Address</label>
+                  <input
+                    name="address"
+                    value={event.address}
+                    onChange={handleChange}
+                    disabled={loading}
+                    placeholder="Enter full address"
+                  />
+                </div>
 
-        <label>
-          City: <i>(Optional)</i>
-        </label>
-        <input
-          name="city"
-          value={event.city}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-        />
+                <div className="form-group">
+                  <label className="form-label">Map Link</label>
+                  <input
+                    name="mapLink"
+                    value={event.mapLink}
+                    onChange={handleChange}
+                    disabled={loading}
+                    placeholder="Google Maps link"
+                  />
+                </div>
+              </div>
+            )}
 
-        <label>
-          Google Map Link: <i>(Optional)</i>
-        </label>
-        <input
-          name="mapLink"
-          value={event.mapLink}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-        />
+            {event.eventType !== 'In-person' && (
+              <div className="form-group">
+                <label className="form-label">Online Meeting Link *</label>
+                <input
+                  name="onlineLink"
+                  value={event.onlineLink}
+                  onChange={handleChange}
+                  disabled={loading}
+                  placeholder="Zoom, Google Meet, etc."
+                />
+              </div>
+            )}
 
-        <label>
-          Online Meeting Link: <i>(Required for Online/Hybrid)</i>
-        </label>
-        <input
-          name="onlineLink"
-          value={event.onlineLink}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-        />
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Contact Email</label>
+                <input
+                  name="contactEmail"
+                  type="email"
+                  value={event.contactEmail}
+                  onChange={handleChange}
+                  disabled={loading}
+                  placeholder="contact@event.com"
+                />
+              </div>
 
-        <label>Contact Email: *</label>
-        <input
-          name="contactEmail"
-          value={event.contactEmail}
-          onChange={handleChange}
-          required
-          style={styles.input}
-          disabled={loading}
-        />
+              <div className="form-group">
+                <label className="form-label">Contact Phone</label>
+                <input
+                  name="contactPhone"
+                  value={event.contactPhone}
+                  onChange={handleChange}
+                  disabled={loading}
+                  placeholder="+1 (555) 123-4567"
+                />
+              </div>
+            </div>
 
-        <label>
-          Contact Phone: <i>(Optional)</i>
-        </label>
-        <input
-          name="contactPhone"
-          value={event.contactPhone}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-        />
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Max Attendees</label>
+                <input
+                  name="maxAttendees"
+                  type="number"
+                  value={event.maxAttendees}
+                  onChange={handleChange}
+                  disabled={loading}
+                  placeholder="Leave empty for unlimited"
+                />
+              </div>
 
-        <label>
-          Website / Social Link: <i>(Optional)</i>
-        </label>
-        <input
-          name="website"
-          value={event.website}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-        />
+              <div className="form-group">
+                <label className="form-label">Registration Deadline</label>
+                <input
+                  name="registrationDeadline"
+                  type="datetime-local"
+                  value={event.registrationDeadline}
+                  onChange={handleChange}
+                  disabled={loading}
+                />
+              </div>
+            </div>
 
-        <label>
-          Maximum Attendees: <i>(Optional)</i>
-        </label>
-        <input
-          type="number"
-          name="maxAttendees"
-          value={event.maxAttendees}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-          min={1}
-        />
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label checkbox-label">
+                  <input
+                    name="requireApproval"
+                    type="checkbox"
+                    checked={event.requireApproval}
+                    onChange={handleChange}
+                    disabled={loading}
+                  />
+                  Require organizer approval
+                </label>
+              </div>
 
-        <label>Registration Deadline: *</label>
-        <input
-          type="date"
-          name="registrationDeadline"
-          value={event.registrationDeadline}
-          onChange={handleChange}
-          required
-          style={styles.input}
-          disabled={loading}
-        />
+              <div className="form-group">
+                <label className="form-label checkbox-label">
+                  <input
+                    name="enableWaitlist"
+                    type="checkbox"
+                    checked={event.enableWaitlist}
+                    onChange={handleChange}
+                    disabled={loading}
+                  />
+                  Enable waitlist when full
+                </label>
+              </div>
+            </div>
 
-        <label>
-          <input
-            type="checkbox"
-            name="requireApproval"
-            checked={event.requireApproval}
-            onChange={handleChange}
-            disabled={loading}
-          />
-          Require Approval Before Registration <i>(Optional)</i>
-        </label>
+            <div className="form-group">
+              <label className="form-label">Poster Image URL</label>
+              <input
+                name="posterImage"
+                value={event.posterImage}
+                onChange={handleChange}
+                disabled={loading}
+                placeholder="https://example.com/poster.jpg"
+              />
+            </div>
 
-        <label>
-          <input
-            type="checkbox"
-            name="enableWaitlist"
-            checked={event.enableWaitlist}
-            onChange={handleChange}
-            disabled={loading}
-          />
-          Enable Waitlist <i>(Optional)</i>
-        </label>
+            <div className="form-group">
+              <label className="form-label">Website</label>
+              <input
+                name="website"
+                value={event.website}
+                onChange={handleChange}
+                disabled={loading}
+                placeholder="https://your-event-website.com"
+              />
+            </div>
 
-        <label>
-          Poster Image URL: <i>(Optional)</i>
-        </label>
-        <input
-          name="posterImage"
-          value={event.posterImage}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-        />
-
-        <label>
-          Logo Image URL: <i>(Optional)</i>
-        </label>
-        <input
-          name="logoImage"
-          value={event.logoImage}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-        />
-
-        <label>
-          Promo Video URL: <i>(Optional)</i>
-        </label>
-        <input
-          name="promoVideo"
-          value={event.promoVideo}
-          onChange={handleChange}
-          style={styles.input}
-          disabled={loading}
-        />
-
-        <button type="submit" disabled={loading} style={styles.button}>
-          {loading ? 'Creating...' : 'Create Event'}
-        </button>
-      </form>
+            <div className="form-actions">
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn btn-primary btn-large"
+              >
+                {loading ? 'Creating Event...' : 'Create Event'}
+              </button>
+            </div>
+          </form>
+      </div>
     </div>
   );
-};
-
-const styles = {
-  container: {
-    maxWidth: 700,
-    margin: '0 auto',
-    padding: '20px 30px',
-    background: '#fff',
-    borderRadius: 10,
-    boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-  },
-  header: {
-    textAlign: 'center',
-    color: '#333',
-    marginBottom: 20,
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-  },
-  input: {
-    padding: '10px 14px',
-    fontSize: '16px',
-    borderRadius: 6,
-    border: '1px solid #ccc',
-  },
-  textarea: {
-    minHeight: 90,
-    padding: '10px 14px',
-    fontSize: '16px',
-    borderRadius: 6,
-    border: '1px solid #ccc',
-  },
-  button: {
-    marginTop: 20,
-    padding: '12px 18px',
-    backgroundColor: '#28a745',
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: '16px',
-    border: 'none',
-    borderRadius: 6,
-    cursor: 'pointer',
-  },
 };
 
 export default CreateEvent;

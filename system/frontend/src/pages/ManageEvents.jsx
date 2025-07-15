@@ -1,17 +1,17 @@
-
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 
 const ManageEvents = () => {
   const [myEvents, setMyEvents] = useState([]);
   const [loadingCancelIds, setLoadingCancelIds] = useState([]);
+  const [expandedEvents, setExpandedEvents] = useState(new Set());
   const navigate = useNavigate();
 
   // Fetch events created by the current organizer
-  const fetchMyEvents = useCallback(async () => {
+  const fetchMyEvents = async () => {
     try {
-      const res = await API.get('/event/my-events');
+      const res = await API.get('/events/my-events');
       const events = res.data;
 
       // Sort events by status and date: active first, then past, then cancelled
@@ -26,11 +26,11 @@ const ManageEvents = () => {
       console.error('Error fetching events:', err);
       alert('Failed to load your events.');
     }
-  }, []);
+  };
 
   useEffect(() => {
     fetchMyEvents();
-  }, [fetchMyEvents]);
+  }, []);
 
   // Cancel an event by id
   const cancelEvent = async (id) => {
@@ -38,7 +38,7 @@ const ManageEvents = () => {
 
     setLoadingCancelIds((prev) => [...prev, id]);
     try {
-      await API.put(`/event/cancel/${id}`);
+      await API.put(`/events/cancel/${id}`);
       alert('Event cancelled successfully.');
       await fetchMyEvents();
     } catch (err) {
@@ -52,7 +52,7 @@ const ManageEvents = () => {
   // Approve a pending attendee
   const handleApprove = async (eventId, userId) => {
     try {
-      await API.post(`/event/${eventId}/approve/${userId}`);
+      await API.post(`/events/${eventId}/approve/${userId}`);
       alert('User approved successfully');
       await fetchMyEvents(); // refresh to update pending list and attendees
     } catch (err) {
@@ -62,7 +62,7 @@ const ManageEvents = () => {
   };
   const handleReject = async (eventId, userId) => {
   try {
-    await API.post(`/event/${eventId}/reject/${userId}`);
+    await API.post(`/events/${eventId}/reject/${userId}`);
     alert('User rejected successfully');
     await fetchMyEvents(); // Refresh list
   } catch (err) {
@@ -71,169 +71,262 @@ const ManageEvents = () => {
   }
 };
 
-  // Navigate to QR scanner for the event (only enabled if event is today)
-  const goToQRScanner = (eventId, organizerId) => {
+  // Navigate to QR scanner for the event
+  const goToQRScanner = (eventId, event) => {
+    // Use the organizerId field returned by the backend
+    const organizerId = event.organizerId || 
+                       event.organizer?._id || 
+                       event.organizer;
+    
+    if (!organizerId) {
+      alert('Error: Cannot determine organizer ID for this event');
+      return;
+    }
+    
     navigate(`/scan-attendees/${eventId}/${organizerId}`);
   };
 
-  // Check if event date is today
-  const isToday = useCallback((dateStr) => {
-    const today = new Date();
-    const eventDate = new Date(dateStr);
-    return (
-      today.getFullYear() === eventDate.getFullYear() &&
-      today.getMonth() === eventDate.getMonth() &&
-      today.getDate() === eventDate.getDate()
-    );
-  }, []);
-
   // Returns a badge style object for event status
   const getStatusBadge = (status) => {
-    const colorMap = {
-      active: '#4caf50',    // Green
-      past: '#607d8b',      // Blue Grey
-      cancelled: '#f44336', // Red
+    const statusClasses = {
+      'active': 'status-badge status-active',
+      'cancelled': 'status-badge status-cancelled',
+      'past': 'status-badge status-past'
     };
-    return {
-      backgroundColor: colorMap[status] || '#ccc',
-      color: 'white',
-      padding: '4px 8px',
-      borderRadius: '4px',
-      fontSize: '0.85rem',
-      fontWeight: 'bold',
-      display: 'inline-block',
-      textTransform: 'capitalize',
-    };
+    return statusClasses[status] || 'status-badge status-pending';
+  };
+
+  // Toggle event details expansion
+  const toggleEventDetails = (eventId) => {
+    setExpandedEvents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: 1000, margin: 'auto' }}>
-      <h2>My Events</h2>
-      {myEvents.length === 0 ? (
-        <p>You have no events.</p>
-      ) : (
-        myEvents.map((e) => (
-          <div
-            key={e._id}
-            style={{
-              border: '1px solid #ddd',
-              marginBottom: '20px',
-              padding: '16px',
-              backgroundColor: '#fff',
-              borderRadius: '8px',
-              display: 'flex',
-              gap: '16px',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
-            }}
-          >
-            {e.posterImage && (
-              <img
-                src={e.posterImage}
-                alt="poster"
-                style={{ width: 140, height: 140, borderRadius: 8, objectFit: 'cover' }}
-              />
-            )}
-            <div style={{ flex: 1 }}>
-              <h3>{e.title || 'Untitled Event'}</h3>
-              <div style={{ marginBottom: 10 }}>
-                <span style={getStatusBadge(e.status)}>{e.status}</span>
-              </div>
-              <p>{e.description || 'No description provided.'}</p>
-              <p>
-                <strong>Date:</strong>{' '}
-                {e.date ? new Date(e.date).toLocaleDateString() : 'N/A'}
-              </p>
-              <p>
-                <strong>Time:</strong>{' '}
-                {e.startTime && e.endTime ? `${e.startTime} – ${e.endTime}` : 'N/A'}
-              </p>
-
-              {/* Pending attendees approval section */}
-              
-              {e.requireApproval && e.pendingAttendees?.length > 0 && (
-  <div style={{ marginTop: 20 }}>
-    <h4>Pending Attendee Approvals</h4>
-    {e.pendingAttendees.map((att) => (
-      <div key={att._id} style={{ marginBottom: 8 }}>
-        <span>
-          {att.name} ({att.email})
-        </span>
-        <button
-          onClick={() => handleApprove(e._id, att._id)}
-          style={{
-            marginLeft: 10,
-            padding: '4px 8px',
-            backgroundColor: '#4caf50',
-            color: 'white',
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer',
-          }}
-        >
-          Approve
-        </button>
-
-        <button
-          onClick={() => handleReject(e._id, att._id)}
-          style={{
-            marginLeft: 8,
-            padding: '4px 8px',
-            backgroundColor: '#f44336',
-            color: 'white',
-            border: 'none',
-            borderRadius: 4,
-            cursor: 'pointer',
-          }}
-        >
-          Reject
-        </button>
-      </div>
-    ))}
-    
-  </div>
-)}
-
-
-              <div style={{ marginTop: 12 }}>
-                {e.status === 'active' && (
-                  <>
-                    <button
-                      onClick={() => cancelEvent(e._id)}
-                      disabled={loadingCancelIds.includes(e._id)}
-                      style={{
-                        marginRight: '10px',
-                        padding: '8px 12px',
-                        borderRadius: '4px',
-                        border: 'none',
-                        cursor: loadingCancelIds.includes(e._id) ? 'not-allowed' : 'pointer',
-                        backgroundColor: loadingCancelIds.includes(e._id) ? '#ccc' : '#f44336',
-                        color: '#fff',
-                      }}
-                    >
-                      {loadingCancelIds.includes(e._id) ? 'Cancelling...' : 'Cancel Event'}
-                    </button>
-
-                    <button
-                      onClick={() => goToQRScanner(e._id, e.organizerId)}
-                      // disabled={!isToday(e.date)}
-                      style={{
-                        backgroundColor: isToday(e.date) ? '#4caf50' : '#aaa',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '8px 12px',
-                        borderRadius: '4px',
-                        cursor: isToday(e.date) ? 'pointer' : 'not-allowed',
-                      }}
-                    >
-                      Open QR Scanner
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+    <div className="page-container">
+      <div className="container">
+        <div className="page-header">
+          <h1 className="page-title">Manage My Events</h1>
+          <p className="page-subtitle">View and manage your created events</p>
+        </div>
+        
+        {myEvents.length === 0 ? (
+          <div className="empty-state">
+            <h3>No events created yet</h3>
+            <p>Create your first event to get started</p>
           </div>
-        ))
-      )}
+        ) : (
+          <div className="grid">
+            {myEvents.map((e) => (
+              <div key={e._id} className="card event-card">
+                <div className="card-header">
+                  <div>
+                    <h3 className="card-title">{e.title || 'Untitled Event'}</h3>
+                    <p className="card-subtitle">
+                      <span className="event-date">{e.date ? new Date(e.date).toLocaleDateString() : 'N/A'}</span>
+                      {e.startTime && e.endTime && (
+                        <> • <span className="event-time">{e.startTime} – {e.endTime}</span></>
+                      )}
+                    </p>
+                  </div>
+                  <span className={getStatusBadge(e.status)}>{e.status}</span>
+                </div>
+                
+                <div className="card-content">
+                  <p className="event-description">{e.description || 'No description provided.'}</p>
+                  
+                  <div className="event-meta">
+                    <span className="meta-item">
+                      <span className="meta-icon">🏷️</span>
+                      <span>{e.eventType || 'No type'}</span>
+                    </span>
+                    <span className="meta-item">
+                      <span className="meta-icon">📍</span>
+                      <span>{e.venueName || 'N/A'}</span>
+                    </span>
+                    <span className="meta-item">
+                      <span className="meta-icon">👥</span>
+                      <span>{e.attendees?.length || 0}/{e.maxAttendees || 'Unlimited'}</span>
+                    </span>
+                    {((e.pendingApprovals?.length || e.pendingAttendees?.length) > 0) && (
+                      <span className="meta-item">
+                        <span className="meta-icon">⏳</span>
+                        <span>{(e.pendingApprovals?.length || e.pendingAttendees?.length) || 0} pending</span>
+                      </span>
+                    )}
+                    <span className="meta-item">
+                      <span className="meta-icon">⏰</span>
+                      <span>Deadline: {e.registrationDeadline ? new Date(e.registrationDeadline).toLocaleDateString() : 'None'}</span>
+                    </span>
+                  </div>
+
+                  {/* Expandable event details */}
+                  {expandedEvents.has(e._id) && (
+                    <div className="event-details">
+                      <div className="details-grid">
+                        <div className="details-column">
+                          <h4 className="details-title">Event Details</h4>
+                          <p className="details-item">
+                            <span className="details-label">Date:</span>
+                            <span>{e.date ? new Date(e.date).toLocaleDateString() : 'N/A'}</span>
+                          </p>
+                          <p className="details-item">
+                            <span className="details-label">End Date:</span>
+                            <span>{e.endDate ? new Date(e.endDate).toLocaleDateString() : 'N/A'}</span>
+                          </p>
+                          <p className="details-item">
+                            <span className="details-label">Time:</span>
+                            <span>{e.startTime || 'N/A'} - {e.endTime || 'N/A'}</span>
+                          </p>
+                          <p className="details-item">
+                            <span className="details-label">City:</span>
+                            <span>{e.city || 'N/A'}</span>
+                          </p>
+                          <p className="details-item">
+                            <span className="details-label">Registration Deadline:</span>
+                            <span>{e.registrationDeadline ? new Date(e.registrationDeadline).toLocaleString() : 'N/A'}</span>
+                          </p>
+                        </div>
+                        <div className="details-column">
+                          <h4 className="details-title">Attendance</h4>
+                          <p className="details-item">
+                            <span className="details-label">Max Attendees:</span>
+                            <span>{e.maxAttendees || 'Unlimited'}</span>
+                          </p>
+                          <p className="details-item">
+                            <span className="details-label">Current Attendees:</span>
+                            <span>{e.attendees?.length || 0}</span>
+                          </p>
+                          <p className="details-item">
+                            <span className="details-label">Pending Approvals:</span>
+                            <span>{(e.pendingApprovals?.length || e.pendingAttendees?.length) || 0}</span>
+                          </p>
+                          <p className="details-item">
+                            <span className="details-label">Waitlist:</span>
+                            <span>{e.waitlist?.length || 0}</span>
+                          </p>
+                          <p className="details-item">
+                            <span className="details-label">Requires Approval:</span>
+                            <span>{e.requireApproval ? 'Yes' : 'No'}</span>
+                          </p>
+                          <p className="details-item">
+                            <span className="details-label">Waitlist Enabled:</span>
+                            <span>{e.enableWaitlist ? 'Yes' : 'No'}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Attendees section */}
+                      <div className="attendees-section">
+                        <h4 className="details-title">Attendees ({e.attendees?.length || 0})</h4>
+                        {e.attendees?.length > 0 ? (
+                          <div className="attendees-list">
+                            <ul>
+                              {e.attendees.map((attendee, idx) =>
+                                attendee && typeof attendee === 'object' ? (
+                                  <li key={attendee._id || idx} className="attendee-item"> 
+                                    {attendee.name || 'Unnamed'} ({attendee.email || 'No email'})
+                                  </li>
+                                ) : (
+                                  <li key={idx} className="attendee-item invalid">
+                                    Invalid attendee
+                                  </li>
+                                )
+                              )}
+                            </ul>
+                          </div>
+                        ) : (
+                          <p className="no-data-message">No attendees yet</p>
+                        )}
+                      </div>
+
+                      {/* Pending approvals section with action buttons */}
+                      {(e.pendingApprovals?.length > 0 || e.pendingAttendees?.length > 0) && (
+                        <div className="pending-section">
+                          <h4 className="details-title">
+                            Pending Approvals ({(e.pendingApprovals?.length || e.pendingAttendees?.length) || 0})
+                          </h4>
+                          <div className="pending-list">
+                            {(e.pendingApprovals || e.pendingAttendees || []).map((u, i) => (
+                              <div key={u._id || i} className="pending-item approval-item">
+                                <span className="pending-user">{u.name} ({u.email})</span>
+                                <div className="approval-actions">
+                                  <button
+                                    onClick={() => handleApprove(e._id, u._id)}
+                                    className="btn btn-success btn-small"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleReject(e._id, u._id)}
+                                    className="btn btn-danger btn-small"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Waitlist section */}
+                      {e.waitlist?.length > 0 && (
+                        <div className="waitlist-section">
+                          <h4 className="details-title">Waitlist ({e.waitlist.length})</h4>
+                          <ul className="waitlist-list">
+                            {e.waitlist.map((u, i) => (
+                              <li key={u._id || i} className="waitlist-item">
+                                {u.name} ({u.email})
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="card-actions">
+                  <button 
+                    onClick={() => toggleEventDetails(e._id)}
+                    className="btn btn-secondary details-toggle"
+                  >
+                    {expandedEvents.has(e._id) ? 'Hide Details' : 'More Details'}
+                  </button>
+
+                  {e.status === 'active' && (
+                    <>
+                      <button
+                        onClick={() => cancelEvent(e._id)}
+                        disabled={loadingCancelIds.includes(e._id)}
+                        className="btn btn-danger"
+                      >
+                        {loadingCancelIds.includes(e._id) ? 'Cancelling...' : 'Cancel Event'}
+                      </button>
+
+                      <button
+                        onClick={() => goToQRScanner(e._id, e)}
+                        className="btn btn-success"
+                        title="Open QR Scanner for attendance verification"
+                      >
+                        Open QR Scanner
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

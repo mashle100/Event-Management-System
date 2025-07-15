@@ -99,43 +99,39 @@ const EventWeather = ({ city, date }) => {
   if (!weather) return null;
 
   return (
-    <div style={weatherStyles.widget}>
-      <strong>Weather forecast:</strong>
-      <p>{weather.dt_txt}</p>
-      <p style={weatherStyles.temp}>{Math.round(weather.main.temp)}°C</p>
-      <p style={weatherStyles.description}>{weather.weather[0].description}</p>
-      <div style={weatherStyles.details}>
+    <div style={{
+      marginTop: '16px',
+      padding: '16px',
+      background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+      color: 'white',
+      borderRadius: '12px',
+      boxShadow: '0 4px 12px rgba(30, 58, 138, 0.3)',
+      fontSize: '14px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <span style={{ fontSize: '16px' }}>🌤️</span>
+        <strong>Weather Forecast</strong>
+      </div>
+      <p style={{ fontSize: '0.875rem', opacity: '0.9', margin: '0 0 8px 0' }}>
+        {weather.dt_txt}
+      </p>
+      <p style={{ fontSize: '32px', margin: '8px 0', fontWeight: '700' }}>
+        {Math.round(weather.main.temp)}°C
+      </p>
+      <p style={{ 
+        fontStyle: 'italic', 
+        textTransform: 'capitalize', 
+        marginBottom: '12px',
+        opacity: '0.9'
+      }}>
+        {weather.weather[0].description}
+      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
         <div><strong>Humidity:</strong> {weather.main.humidity}%</div>
         <div><strong>Wind:</strong> {weather.wind.speed} m/s</div>
       </div>
     </div>
   );
-};
-
-const weatherStyles = {
-  widget: {
-    marginTop: 12,
-    padding: '10px',
-    backgroundColor: '#034daa',
-    color: 'white',
-    borderRadius: 8,
-    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-    fontSize: '14px',
-  },
-  temp: {
-    fontSize: 28,
-    margin: '5px 0',
-    fontWeight: '700',
-  },
-  description: {
-    fontStyle: 'italic',
-    textTransform: 'capitalize',
-    marginBottom: 8,
-  },
-  details: {
-    display: 'flex',
-    justifyContent: 'space-between',
-  },
 };
 
 // --- Main EventsPage component ---
@@ -144,6 +140,7 @@ const EventsPage = () => {
   const [loadingIds, setLoadingIds] = useState([]);
   const [registrationStatus, setRegistrationStatus] = useState({});
   const [fullEvents, setFullEvents] = useState(new Set()); // Track events full on register attempt
+  const [expandedEvents, setExpandedEvents] = useState(new Set()); // Track expanded event details
 
   useEffect(() => {
     fetchData();
@@ -152,18 +149,17 @@ const EventsPage = () => {
   const fetchData = async () => {
     try {
       const [eventsRes, registrationsRes] = await Promise.all([
-        API.get('/event'),
+        API.get('/events'),
         API.get('/user/registrations'),
       ]);
-      const registeredEventIds = registrationsRes.data.map((e) => e._id);
-
-      // Initialize registrationStatus for registered events as 'registered'
+      
+      // Initialize registrationStatus based on backend data
       const initialStatus = {};
-      registeredEventIds.forEach((id) => {
-        initialStatus[id] = 'registered';
+      registrationsRes.data.forEach((registeredEvent) => {
+        initialStatus[registeredEvent._id] = registeredEvent.registrationStatus || 'registered';
       });
+      
       setRegistrationStatus(initialStatus);
-
       setEvents(eventsRes.data);
     } catch (err) {
       console.error('Fetch error:', err);
@@ -174,8 +170,9 @@ const EventsPage = () => {
   const handleRegister = async (eventId) => {
     if (loadingIds.includes(eventId)) return;
     setLoadingIds((prev) => [...prev, eventId]);
+    
     try {
-      const res = await API.post(`/event/register/${eventId}`);
+      const res = await API.post(`/events/register/${eventId}`);
 
       // Backend returns registrationStatus: 'registered' | 'pending' | 'waitlist'
       const statusFromBackend = res.data.registrationStatus || 'registered';
@@ -205,12 +202,23 @@ const EventsPage = () => {
           )
         );
       }
+
+      // Show success message based on status - only for new registrations
+      if (statusFromBackend === 'registered' && res.data.message !== 'Already registered') {
+        alert('Successfully registered for the event!');
+      } else if (statusFromBackend === 'pending' && res.data.message !== 'Registration pending approval') {
+        alert('Registration submitted! Waiting for organizer approval.');
+      } else if (statusFromBackend === 'waitlist' && res.data.message !== 'Already on waitlist') {
+        alert('Added to waitlist. You will be notified if a spot opens up.');
+      }
+
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Failed to register for event.';
 
       if (errorMsg === 'Event is full') {
         // Mark event as full to show "Waiting for Vacancy"
         setFullEvents((prev) => new Set(prev).add(eventId));
+        alert('Event is full. You have been added to the waitlist.');
       } else {
         alert(errorMsg);
       }
@@ -223,7 +231,7 @@ const EventsPage = () => {
     if (loadingIds.includes(eventId)) return;
     setLoadingIds((prev) => [...prev, eventId]);
     try {
-      await API.delete(`/event/deregister/${eventId}`);
+      await API.delete(`/events/deregister/${eventId}`);
 
       setRegistrationStatus((prev) => ({
         ...prev,
@@ -257,172 +265,314 @@ const EventsPage = () => {
     }
   };
 
+  const toggleEventDetails = (eventId) => {
+    setExpandedEvents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
+
   const activeEvents = events.filter((event) => event.status === 'active');
 
   return (
-    <div style={styles.page}>
-      <h2>All Active Events</h2>
-      {activeEvents.length === 0 ? (
-        <p>No active events found.</p>
-      ) : (
-        activeEvents.map((event) => {
-          const status = registrationStatus[event._id] || null;
-          const isFull = fullEvents.has(event._id);
+    <div className="page-container">
+      <div className="container">
+        <div className="page-header">
+          <h1 className="page-title">Discover Events</h1>
+          <p className="page-subtitle">Find exciting events happening around you</p>
+        </div>
+        
+        {activeEvents.length === 0 ? (
+          <div className="empty-state">
+            <h3>No active events found</h3>
+            <p>Check back later for new events</p>
+          </div>
+        ) : (
+          <div className="grid">
+            {activeEvents.map((event) => {
+              const status = registrationStatus[event._id] || null;
+              const isFull = fullEvents.has(event._id);
 
-          return (
-            <div key={event._id} style={styles.card}>
-              {event.posterImage && (
-                <img src={event.posterImage} alt="Poster" style={styles.poster} />
-              )}
-              <div style={styles.content}>
-                <h3>{event.title || 'Untitled Event'}</h3>
-                <p>{event.description || 'No description available.'}</p>
-                <p>
-                  <strong>Date:</strong> {new Date(event.date).toLocaleDateString()}
-                </p>
-                <p>
-                  <strong>Time:</strong> {event.startTime} – {event.endTime}
-                </p>
-                <p>
-                  <strong>Category:</strong> {event.category}
-                </p>
-                <p>
-                  <strong>Event Type:</strong> {event.eventType}
-                </p>
+              return (
+                <div key={event._id} className="card event-card">
+                  {event.posterImage && (
+                    <div className="event-poster">
+                      <img 
+                        src={event.posterImage} 
+                        alt="Event Poster"
+                        className="poster-image"
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="card-header">
+                    <div>
+                      <h3 className="card-title">{event.title || 'Untitled Event'}</h3>
+                      <p className="card-subtitle">
+                        <span className="organizer-name">{event.organizerName || 'Unknown'}</span> • 
+                        <span className="event-date">{new Date(event.date).toLocaleDateString()}</span>
+                      </p>
+                    </div>
+                    <span className="status-badge status-active">{event.eventType}</span>
+                  </div>
+                  
+                  <div className="card-content">
+                    <p className="event-description">{event.description || 'No description available.'}</p>
+                    
+                    <div className="event-meta">
+                      <span className="meta-item">
+                        <span className="meta-icon">🏷️</span>
+                        <span>{event.category || 'Other'}</span>
+                      </span>
+                      <span className="meta-item">
+                        <span className="meta-icon">📍</span>
+                        <span>{event.city || event.venueName || 'Location TBD'}</span>
+                      </span>
+                      <span className="meta-item">
+                        <span className="meta-icon">👥</span>
+                        <span>{event.attendeesCount || 0}{event.maxAttendees ? `/${event.maxAttendees}` : ''}</span>
+                      </span>
+                      <span className="meta-item">
+                        <span className="meta-icon">⏰</span>
+                        <span>{event.startTime} – {event.endTime}</span>
+                      </span>
+                      {event.requireApproval && (
+                        <span className="meta-item approval-required">
+                          <span className="meta-icon">✅</span>
+                          <span>Organizer Approval Required</span>
+                        </span>
+                      )}
+                      {event.registrationDeadline && (
+                        <span className="meta-item deadline-item">
+                          <span className="meta-icon">📅</span>
+                          <span>
+                            Registration Deadline: {new Date(event.registrationDeadline).toLocaleDateString()}
+                            {new Date(event.registrationDeadline) < new Date() && (
+                              <span className="deadline-expired"> (Expired)</span>
+                            )}
+                          </span>
+                        </span>
+                      )}
+                    </div>
 
-                {event.city && (
-                  <p>
-                    <strong>City:</strong> {event.city}
-                  </p>
-                )}
-                {event.eventType !== 'Online' && event.venueName && (
-                  <p>
-                    <strong>Venue:</strong> {event.venueName}
-                  </p>
-                )}
-                {event.onlineLink && (
-                  <p>
-                    <strong>Online Link:</strong>{' '}
-                    <a href={event.onlineLink} target="_blank" rel="noopener noreferrer">
-                      Join Event
-                    </a>
-                  </p>
-                )}
-                {event.mapLink && (
-                  <p>
-                    <strong>Map:</strong>{' '}
-                    <a href={event.mapLink} target="_blank" rel="noopener noreferrer">
-                      View Map
-                    </a>
-                  </p>
-                )}
+                    {/* Weather component: show weather for city + event date */}
+                    {event.city && event.date && <EventWeather city={event.city} date={event.date} />}
 
-                <p>
-                  <strong>Tags:</strong>{' '}
-                  {event.tags?.length > 0 ? event.tags.join(', ') : 'None'}
-                </p>
+                    {/* Registration status information */}
+                    {status && (
+                      <div className="registration-status">
+                        {status === 'registered' && (
+                          <div className="status-message success-message">
+                            <span className="status-icon">✅</span>
+                            <span>
+                              <strong>Registration Confirmed!</strong> You are successfully registered for this event.
+                              {event.requireApproval && ' Your registration has been approved by the organizer.'}
+                            </span>
+                          </div>
+                        )}
+                        {status === 'pending' && (
+                          <div className="status-message pending-message">
+                            <span className="status-icon">⏳</span>
+                            <span>
+                              <strong>Registration Submitted!</strong> Your registration is awaiting organizer approval.
+                              <br />
+                              <small>
+                                This event requires manual approval from <strong>{event.organizerName}</strong>. 
+                                You will receive an email notification once your registration is reviewed.
+                              </small>
+                            </span>
+                          </div>
+                        )}
+                        {status === 'waitlist' && (
+                          <div className="status-message waitlist-message">
+                            <span className="status-icon">⏰</span>
+                            <span>
+                              <strong>You're on the Waitlist!</strong> You'll be automatically notified via email if a spot opens up.
+                              <br />
+                              <small>
+                                Current position: You will be moved to the main attendee list when someone cancels their registration.
+                              </small>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                {event.registrationDeadline && (
-                  <p>
-                    <strong>Registration Deadline:</strong>{' '}
-                    {new Date(event.registrationDeadline).toLocaleDateString()}
-                  </p>
-                )}
+                    {/* Loading state indicator */}
+                    {loadingIds.includes(event._id) && (
+                      <div className="registration-status">
+                        <div className="status-message loading-message">
+                          <span className="status-icon">🔄</span>
+                          <span>
+                            <strong>Processing...</strong>
+                            <br />
+                            <small>
+                              {event.requireApproval 
+                                ? `Submitting your registration request to ${event.organizerName}. This may take a moment.`
+                                : 'Registering you for this event. Please wait.'}
+                            </small>
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
-                <p>
-                  <strong>Max Attendees:</strong> {event.maxAttendees || 'Unlimited'}
-                </p>
+                    {/* Show additional info when approval is required */}
+                    {!status && !loadingIds.includes(event._id) && event.requireApproval && (
+                      <div className="registration-status">
+                        <div className="status-message info-message">
+                          <span className="status-icon">ℹ️</span>
+                          <span>
+                            <strong>Approval Required:</strong> This event requires approval from the organizer ({event.organizerName}).
+                            <br />
+                            <small>
+                              After clicking "Request to Join", your registration will be reviewed and you'll receive an email notification with the decision.
+                            </small>
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
-                <p>
-                  <strong>Current Attendees:</strong> {event.attendeesCount || 0}
-                </p>
-
-                <p>
-                  <strong>Waitlist:</strong> {event.enableWaitlist ? 'Enabled' : 'Disabled'}
-                </p>
-                <p>
-                  <strong>Organizer Approval:</strong>{' '}
-                  {event.requireApproval ? 'Enabled' : 'Disabled'}
-                </p>
-
-                <p>
-                  <strong>Organizer:</strong> {event.organizerName || 'Unknown'}
-                </p>
-
-                {/* Weather component: show weather for city + event date */}
-                {event.city && event.date && <EventWeather city={event.city} date={event.date} />}
-
-                {status === 'registered' ? (
-                  <button
-                    onClick={() => handleDeregister(event._id)}
-                    disabled={loadingIds.includes(event._id)}
-                    style={{ ...styles.button, backgroundColor: '#e53935' }}
-                  >
-                    {loadingIds.includes(event._id) ? 'Processing...' : 'Deregister'}
-                  </button>
-                ) : status === 'pending' ? (
-                  <button disabled style={{ ...styles.button, backgroundColor: '#fbc02d' }}>
-                    Waiting for Approval
-                  </button>
-                ) : status === 'waitlist' ? (
-                  <button disabled style={{ ...styles.button, backgroundColor: '#9e9e9e' }}>
-                    In Waitlist
-                  </button>
-                ) : isFull ? (
-                  <button disabled style={{ ...styles.button, backgroundColor: '#9e9e9e' }}>
-                    Waiting for Vacancy
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleRegister(event._id)}
-                    disabled={loadingIds.includes(event._id)}
-                    style={{ ...styles.button, backgroundColor: '#4CAF50' }}
-                  >
-                    {loadingIds.includes(event._id) ? 'Processing...' : 'Register'}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })
-      )}
+                    {/* Expandable details section */}
+                    {expandedEvents.has(event._id) && (
+                      <div className="event-details">
+                        <div className="details-grid">
+                          <div>
+                            <h4 className="details-title">Event Information</h4>
+                            <div className="details-item">
+                              <span className="details-label">Event Type:</span>
+                              <span>{event.eventType}</span>
+                            </div>
+                            {event.venueName && (
+                              <div className="details-item">
+                                <span className="details-label">Venue:</span>
+                                <span>{event.venueName}</span>
+                              </div>
+                            )}
+                            {event.address && (
+                              <div className="details-item">
+                                <span className="details-label">Address:</span>
+                                <span>{event.address}</span>
+                              </div>
+                            )}
+                            <div className="details-item">
+                              <span className="details-label">Max Attendees:</span>
+                              <span>{event.maxAttendees || 'Unlimited'}</span>
+                            </div>
+                            <div className="details-item">
+                              <span className="details-label">Current Attendees:</span>
+                              <span>{event.attendeesCount || 0}</span>
+                            </div>
+                            <div className="details-item">
+                              <span className="details-label">Waitlist:</span>
+                              <span>{event.enableWaitlist ? 'Enabled' : 'Disabled'}</span>
+                            </div>
+                            <div className="details-item">
+                              <span className="details-label">Registration Process:</span>
+                              <span>{event.requireApproval ? 'Manual approval required' : 'Instant registration'}</span>
+                            </div>
+                            {event.requireApproval && (
+                              <div className="details-item">
+                                <span className="details-label">Organizer Contact:</span>
+                                <span>{event.organizerName}</span>
+                              </div>
+                            )}
+                            {event.registrationDeadline && (
+                              <div className="details-item">
+                                <span className="details-label">Registration Deadline:</span>
+                                <span>{new Date(event.registrationDeadline).toLocaleDateString()}</span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div>
+                            <h4 className="details-title">Links & Resources</h4>
+                            {event.onlineLink && (
+                              <div className="details-item">
+                                <span className="details-label">Online Event:</span>
+                                <a href={event.onlineLink} target="_blank" rel="noopener noreferrer" 
+                                   className="event-link">
+                                  🔗 Join Event
+                                </a>
+                              </div>
+                            )}
+                            {event.mapLink && (
+                              <div className="details-item">
+                                <span className="details-label">Location Map:</span>
+                                <a href={event.mapLink} target="_blank" rel="noopener noreferrer"
+                                   className="event-link">
+                                  🗺️ View Map
+                                </a>
+                              </div>
+                            )}
+                            {event.tags?.length > 0 && (
+                              <div className="details-item">
+                                <span className="details-label">Tags:</span>
+                                <div className="event-tags">
+                                  {event.tags.map((tag, index) => (
+                                    <span key={index} className="event-tag">
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="card-actions">
+                    <button
+                      onClick={() => toggleEventDetails(event._id)}
+                      className="btn btn-secondary details-toggle"
+                    >
+                      {expandedEvents.has(event._id) ? 'Hide Details' : 'More Details'}
+                    </button>
+                    
+                    {status === 'registered' ? (
+                      <button
+                        onClick={() => handleDeregister(event._id)}
+                        disabled={loadingIds.includes(event._id)}
+                        className="btn btn-danger"
+                      >
+                        {loadingIds.includes(event._id) ? 'Processing...' : 'Deregister'}
+                      </button>
+                    ) : status === 'pending' ? (
+                      <button disabled className="btn btn-warning">
+                        Waiting for Approval
+                      </button>
+                    ) : status === 'waitlist' ? (
+                      <button disabled className="btn btn-secondary">
+                        In Waitlist
+                      </button>
+                    ) : isFull ? (
+                      <button disabled className="btn btn-secondary">
+                        Waiting for Vacancy
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleRegister(event._id)}
+                        disabled={loadingIds.includes(event._id)}
+                        className="btn btn-success"
+                      >
+                        {loadingIds.includes(event._id) ? 'Processing...' : 'Register'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
-};
-
-const styles = {
-  page: {
-    maxWidth: 1000,
-    margin: '0 auto',
-    padding: 20,
-  },
-  card: {
-    display: 'flex',
-    border: '1px solid #ddd',
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 20,
-    backgroundColor: '#fff',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-    gap: 16,
-  },
-  poster: {
-    width: 160,
-    height: 160,
-    objectFit: 'cover',
-    borderRadius: 8,
-  },
-  content: {
-    flex: 1,
-  },
-  button: {
-    padding: '8px 16px',
-    color: 'white',
-    border: 'none',
-    borderRadius: 5,
-    cursor: 'pointer',
-    marginTop: 10,
-  },
 };
 
 export default EventsPage;

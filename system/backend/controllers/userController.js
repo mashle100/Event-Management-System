@@ -37,9 +37,40 @@ exports.getProfile = async (req, res) => {
 
 exports.getUserRegistrations = async (req, res) => {
   try {
-    const events = await Event.find({ attendees: req.user.id });
-    res.json(events);
-  } catch {
+    const userId = req.user.id;
+    
+    // Find all events where the user is registered, pending, or on waitlist
+    const events = await Event.find({
+      $or: [
+        { attendees: userId },
+        { pendingApprovals: userId },
+        { waitlist: userId }
+      ]
+    }).populate('organizer', 'name email _id');
+
+    // Add registration status for each event
+    const eventsWithStatus = events.map(event => {
+      let registrationStatus = 'registered';
+      
+      if (event.pendingApprovals.includes(userId)) {
+        registrationStatus = 'pending';
+      } else if (event.waitlist.includes(userId)) {
+        registrationStatus = 'waitlist';
+      }
+      
+      return {
+        ...event.toObject(),
+        registrationStatus,
+        organizerId: event.organizer?._id,
+        organizerName: event.organizer?.name,
+        organizerEmail: event.organizer?.email,
+        attendeesCount: event.attendees?.length || 0
+      };
+    });
+
+    res.json(eventsWithStatus);
+  } catch (err) {
+    console.error('Get user registrations error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 };
