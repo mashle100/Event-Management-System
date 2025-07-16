@@ -660,7 +660,7 @@ const AdminDashboard = () => {
                 </p>
                 <p className="details-item">
                   <span className="details-label">Requires Approval:</span>
-                  <span>{e.requiresApproval ? 'Yes' : 'No'}</span>
+                  <span>{e.requireApproval ? 'Yes' : 'No'}</span>
                 </p>
               </div>
             </div>

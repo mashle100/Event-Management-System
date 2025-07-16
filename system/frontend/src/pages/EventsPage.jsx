@@ -1,10 +1,8 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import { parseJwt, getToken } from '../utils';
 import axios from 'axios';
-
-const userId = parseJwt(getToken())?.id;
 
 // For CRA:
 const OPENWEATHER_API_KEY = process.env.REACT_APP_OPENWEATHER_API_KEY;
@@ -135,12 +133,81 @@ const EventWeather = ({ city, date }) => {
 };
 
 // --- Main EventsPage component ---
-const EventsPage = () => {
+const EventsPage = ({ user }) => {
+  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loadingIds, setLoadingIds] = useState([]);
   const [registrationStatus, setRegistrationStatus] = useState({});
   const [fullEvents, setFullEvents] = useState(new Set()); // Track events full on register attempt
   const [expandedEvents, setExpandedEvents] = useState(new Set()); // Track expanded event details
+  
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedEventType, setSelectedEventType] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [sortBy, setSortBy] = useState('date');
+  const [showFilters, setShowFilters] = useState(false);
+  const [availabilityFilter, setAvailabilityFilter] = useState('');
+  const [registrationFilter, setRegistrationFilter] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const isLoggedIn = !!getToken();
+  const currentUserId = parseJwt(getToken())?.id;
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Generate search suggestions
+  useEffect(() => {
+    if (searchTerm.length > 0) {
+      const suggestions = [];
+      const searchLower = searchTerm.toLowerCase();
+      
+      // Add event title suggestions
+      events.forEach(event => {
+        if (event.title?.toLowerCase().includes(searchLower) && !suggestions.includes(event.title)) {
+          suggestions.push(event.title);
+        }
+      });
+      
+      // Add organizer suggestions
+      events.forEach(event => {
+        if (event.organizerName?.toLowerCase().includes(searchLower) && !suggestions.includes(event.organizerName)) {
+          suggestions.push(event.organizerName);
+        }
+      });
+      
+      // Add city suggestions
+      events.forEach(event => {
+        if (event.city?.toLowerCase().includes(searchLower) && !suggestions.includes(event.city)) {
+          suggestions.push(event.city);
+        }
+      });
+      
+      // Add tag suggestions
+      events.forEach(event => {
+        event.tags?.forEach(tag => {
+          if (tag.toLowerCase().includes(searchLower) && !suggestions.includes(tag)) {
+            suggestions.push(tag);
+          }
+        });
+      });
+      
+      setSearchSuggestions(suggestions.slice(0, 5));
+    } else {
+      setSearchSuggestions([]);
+    }
+  }, [searchTerm, events]);
 
   useEffect(() => {
     fetchData();
@@ -148,23 +215,30 @@ const EventsPage = () => {
 
   const fetchData = async () => {
     try {
-      const [eventsRes, registrationsRes] = await Promise.all([
-        API.get('/events'),
-        API.get('/user/registrations'),
-      ]);
+      const eventsRes = await API.get('/events');
       
-      // Initialize registrationStatus based on backend data
-      const initialStatus = {};
-      registrationsRes.data.forEach((registeredEvent) => {
-        initialStatus[registeredEvent._id] = registeredEvent.registrationStatus || 'registered';
-      });
+      // Only fetch registrations if user is logged in
+      if (isLoggedIn) {
+        const registrationsRes = await API.get('/user/registrations');
+        
+        // Initialize registrationStatus based on backend data
+        const initialStatus = {};
+        registrationsRes.data.forEach((registeredEvent) => {
+          initialStatus[registeredEvent._id] = registeredEvent.registrationStatus || 'registered';
+        });
+        
+        setRegistrationStatus(initialStatus);
+      }
       
-      setRegistrationStatus(initialStatus);
       setEvents(eventsRes.data);
     } catch (err) {
       console.error('Fetch error:', err);
       alert('Failed to load events.');
     }
+  };
+
+  const handleLoginToRegister = () => {
+    navigate('/login');
   };
 
   const handleRegister = async (eventId) => {
@@ -277,7 +351,239 @@ const EventsPage = () => {
     });
   };
 
+  // Search and filter functions
+  const getUniqueValues = useCallback((key) => {
+    const values = events.map(event => event[key]).filter(Boolean);
+    return [...new Set(values)].sort();
+  }, [events]);
+
+  const filterEvents = useCallback((events) => {
+    return events.filter(event => {
+      // Text search with debounced term
+      const searchLower = debouncedSearchTerm.toLowerCase();
+      const matchesSearch = !debouncedSearchTerm || 
+        event.title?.toLowerCase().includes(searchLower) ||
+        event.description?.toLowerCase().includes(searchLower) ||
+        event.organizerName?.toLowerCase().includes(searchLower) ||
+        event.city?.toLowerCase().includes(searchLower) ||
+        event.venueName?.toLowerCase().includes(searchLower) ||
+        event.address?.toLowerCase().includes(searchLower) ||
+        event.tags?.some(tag => tag.toLowerCase().includes(searchLower));
+
+      // Category filter
+      const matchesCategory = !selectedCategory || event.category === selectedCategory;
+
+      // Event type filter
+      const matchesEventType = !selectedEventType || event.eventType === selectedEventType;
+
+      // City filter
+      const matchesCity = !selectedCity || event.city === selectedCity;
+
+      // Date filter
+      const matchesDate = !dateFilter || (() => {
+        const eventDate = new Date(event.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        
+        const thisWeek = new Date(today);
+        thisWeek.setDate(today.getDate() + 7);
+        
+        const thisMonth = new Date(today);
+        thisMonth.setMonth(today.getMonth() + 1);
+        
+        const nextWeek = new Date(today);
+        nextWeek.setDate(today.getDate() + 14);
+
+        switch (dateFilter) {
+          case 'today':
+            return eventDate.toDateString() === today.toDateString();
+          case 'tomorrow':
+            return eventDate.toDateString() === tomorrow.toDateString();
+          case 'thisWeek':
+            return eventDate >= today && eventDate <= thisWeek;
+          case 'nextWeek':
+            return eventDate > thisWeek && eventDate <= nextWeek;
+          case 'thisMonth':
+            return eventDate >= today && eventDate <= thisMonth;
+          case 'past':
+            return eventDate < today;
+          default:
+            return true;
+        }
+      })();
+
+      // Availability filter
+      const matchesAvailability = !availabilityFilter || (() => {
+        const currentAttendees = event.attendeesCount || 0;
+        const maxAttendees = event.maxAttendees;
+        const isRegistered = registrationStatus[event._id];
+        
+        switch (availabilityFilter) {
+          case 'available':
+            return !maxAttendees || currentAttendees < maxAttendees;
+          case 'almostFull':
+            return maxAttendees && currentAttendees >= maxAttendees * 0.8;
+          case 'full':
+            return maxAttendees && currentAttendees >= maxAttendees;
+          case 'waitlist':
+            return event.enableWaitlist && maxAttendees && currentAttendees >= maxAttendees;
+          default:
+            return true;
+        }
+      })();
+
+      // Registration filter
+      const matchesRegistration = !registrationFilter || (() => {
+        const status = registrationStatus[event._id];
+        const hasDeadline = event.registrationDeadline;
+        const isDeadlinePassed = hasDeadline && new Date(event.registrationDeadline) < new Date();
+        
+        switch (registrationFilter) {
+          case 'registered':
+            return status === 'registered';
+          case 'pending':
+            return status === 'pending';
+          case 'waitlist':
+            return status === 'waitlist';
+          case 'notRegistered':
+            return !status;
+          case 'approvalRequired':
+            return event.requireApproval;
+          case 'instantRegistration':
+            return !event.requireApproval;
+          case 'openRegistration':
+            return !isDeadlinePassed;
+          case 'closedRegistration':
+            return isDeadlinePassed;
+          default:
+            return true;
+        }
+      })();
+
+      return matchesSearch && matchesCategory && matchesEventType && matchesCity && matchesDate && matchesAvailability && matchesRegistration;
+    });
+  }, [debouncedSearchTerm, selectedCategory, selectedEventType, selectedCity, dateFilter, availabilityFilter, registrationFilter, registrationStatus]);
+
+  const sortEvents = useCallback((events) => {
+    return [...events].sort((a, b) => {
+      switch (sortBy) {
+        case 'date':
+          return new Date(a.date) - new Date(b.date);
+        case 'dateDesc':
+          return new Date(b.date) - new Date(a.date);
+        case 'title':
+          return a.title?.localeCompare(b.title) || 0;
+        case 'category':
+          return a.category?.localeCompare(b.category) || 0;
+        case 'attendees':
+          return (b.attendeesCount || 0) - (a.attendeesCount || 0);
+        case 'organizer':
+          return a.organizerName?.localeCompare(b.organizerName) || 0;
+        case 'availability':
+          const getAvailabilityScore = (event) => {
+            if (!event.maxAttendees) return 100;
+            return ((event.maxAttendees - (event.attendeesCount || 0)) / event.maxAttendees) * 100;
+          };
+          return getAvailabilityScore(b) - getAvailabilityScore(a);
+        case 'registrationDeadline':
+          const getDeadlineScore = (event) => {
+            if (!event.registrationDeadline) return 0;
+            return new Date(event.registrationDeadline).getTime();
+          };
+          return getDeadlineScore(a) - getDeadlineScore(b);
+        default:
+          return 0;
+      }
+    });
+  }, [sortBy]);
+
+  const clearFilters = useCallback(() => {
+    setSearchTerm('');
+    setDebouncedSearchTerm('');
+    setSelectedCategory('');
+    setSelectedEventType('');
+    setSelectedCity('');
+    setDateFilter('');
+    setAvailabilityFilter('');
+    setRegistrationFilter('');
+    setSortBy('date');
+    setShowSuggestions(false);
+  }, []);
+
+  const handleSearchSuggestionClick = useCallback((suggestion) => {
+    setSearchTerm(suggestion);
+    setShowSuggestions(false);
+  }, []);
+
+  const handleSearchInputChange = useCallback((e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    setShowSuggestions(value.length > 0);
+  }, []);
+
+  const handleSearchInputBlur = useCallback(() => {
+    // Delay hiding suggestions to allow for clicks
+    setTimeout(() => setShowSuggestions(false), 200);
+  }, []);
+
+  const handleSearchInputKeyDown = useCallback((e) => {
+    if (e.key === 'Escape') {
+      setSearchTerm('');
+      setDebouncedSearchTerm('');
+      setShowSuggestions(false);
+      e.target.blur();
+    }
+    if (e.key === 'Enter' && showSuggestions && searchSuggestions.length > 0) {
+      handleSearchSuggestionClick(searchSuggestions[0]);
+    }
+  }, [showSuggestions, searchSuggestions, handleSearchSuggestionClick]);
+
+  // Add keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl/Cmd + K to focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        document.querySelector('.search-input')?.focus();
+      }
+      // Escape to clear search and filters
+      if (e.key === 'Escape' && !e.target.closest('.search-input')) {
+        if (searchTerm || selectedCategory || selectedEventType || selectedCity || dateFilter || availabilityFilter || registrationFilter) {
+          clearFilters();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchTerm, selectedCategory, selectedEventType, selectedCity, dateFilter, availabilityFilter, registrationFilter, clearFilters]);
+
   const activeEvents = events.filter((event) => event.status === 'active');
+  const filteredEvents = useMemo(() => filterEvents(activeEvents), [activeEvents, filterEvents]);
+  const sortedEvents = useMemo(() => sortEvents(filteredEvents), [filteredEvents, sortEvents]);
+
+  // Get unique values for filter options
+  const categories = useMemo(() => getUniqueValues('category'), [getUniqueValues]);
+  const eventTypes = useMemo(() => getUniqueValues('eventType'), [getUniqueValues]);
+  const cities = useMemo(() => getUniqueValues('city'), [getUniqueValues]);
+
+  // Filter statistics
+  const filterStats = useMemo(() => {
+    const totalEvents = activeEvents.length;
+    const filteredCount = filteredEvents.length;
+    const availableEvents = filteredEvents.filter(event => !event.maxAttendees || (event.attendeesCount || 0) < event.maxAttendees).length;
+    const registeredEvents = filteredEvents.filter(event => registrationStatus[event._id] === 'registered').length;
+    
+    return {
+      total: totalEvents,
+      filtered: filteredCount,
+      available: availableEvents,
+      registered: registeredEvents
+    };
+  }, [activeEvents, filteredEvents, registrationStatus]);
 
   return (
     <div className="page-container">
@@ -287,14 +593,276 @@ const EventsPage = () => {
           <p className="page-subtitle">Find exciting events happening around you</p>
         </div>
         
+        {/* Search Bar */}
+        <div className="search-section">
+          <div className="search-bar">
+            <div className="search-input-container">
+              <input
+                type="text"
+                placeholder="Search events by title, description, organizer, location, or tags... (Ctrl+K)"
+                value={searchTerm}
+                onChange={handleSearchInputChange}
+                onFocus={() => setShowSuggestions(searchTerm.length > 0)}
+                onBlur={handleSearchInputBlur}
+                onKeyDown={handleSearchInputKeyDown}
+                className={`search-input ${showSuggestions && searchSuggestions.length > 0 ? 'has-suggestions' : ''}`}
+                aria-label="Search events"
+                aria-expanded={showSuggestions}
+                aria-autocomplete="list"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setDebouncedSearchTerm('');
+                    setShowSuggestions(false);
+                  }}
+                  className="clear-search-btn"
+                  aria-label="Clear search"
+                  title="Clear search (Esc)"
+                >
+                  ✕
+                </button>
+              )}
+              
+              {/* Search Suggestions */}
+              {showSuggestions && searchSuggestions.length > 0 && (
+                <div className="search-suggestions" role="listbox">
+                  {searchSuggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="suggestion-item"
+                      onClick={() => handleSearchSuggestionClick(suggestion)}
+                      role="option"
+                      aria-selected={false}
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleSearchSuggestionClick(suggestion);
+                        }
+                      }}
+                    >
+                      <div className="suggestion-text">{suggestion}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <button 
+              onClick={() => setShowFilters(!showFilters)}
+              className={`btn btn-secondary filter-toggle ${showFilters ? 'active' : ''}`}
+            >
+              <span className="filter-icon">🔍</span>
+              Filters
+              {(debouncedSearchTerm || selectedCategory || selectedEventType || selectedCity || dateFilter || availabilityFilter || registrationFilter) && (
+                <span className="filter-count">
+                  {[debouncedSearchTerm, selectedCategory, selectedEventType, selectedCity, dateFilter, availabilityFilter, registrationFilter].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Filter Statistics */}
+          <div className="filter-stats">
+            <span className="stat-item">
+              <span className="stat-label">Total:</span>
+              <span className="stat-value">{filterStats.total}</span>
+            </span>
+            <span className="stat-item">
+              <span className="stat-label">Filtered:</span>
+              <span className="stat-value">{filterStats.filtered}</span>
+            </span>
+            <span className="stat-item">
+              <span className="stat-label">Available:</span>
+              <span className="stat-value">{filterStats.available}</span>
+            </span>
+            {isLoggedIn && (
+              <span className="stat-item">
+                <span className="stat-label">Registered:</span>
+                <span className="stat-value">{filterStats.registered}</span>
+              </span>
+            )}
+            {(debouncedSearchTerm || selectedCategory || selectedEventType || selectedCity || dateFilter || availabilityFilter || registrationFilter) && (
+              <span className="stat-item active-filters">
+                <span className="stat-label">Active Filters:</span>
+                <span className="stat-value">
+                  {[debouncedSearchTerm, selectedCategory, selectedEventType, selectedCity, dateFilter, availabilityFilter, registrationFilter].filter(Boolean).length}
+                </span>
+              </span>
+            )}
+          </div>
+
+          {/* Search hints */}
+          {!debouncedSearchTerm && !selectedCategory && !selectedEventType && !selectedCity && !dateFilter && !availabilityFilter && !registrationFilter && (
+            <div className="search-hints">
+              <div className="hint-item">
+                <span className="hint-icon">🔍</span>
+                <span>Try searching for event titles, organizers, or locations</span>
+              </div>
+              <div className="hint-item">
+                <span className="hint-icon">⌨️</span>
+                <span>Use <kbd>Ctrl+K</kbd> to quickly focus the search bar</span>
+              </div>
+              <div className="hint-item">
+                <span className="hint-icon">📊</span>
+                <span>Use filters to narrow down your search results</span>
+              </div>
+            </div>
+          )}
+
+          {/* Filter Panel */}
+          {showFilters && (
+            <div className="filter-panel">
+              <div className="filter-grid">
+                <div className="filter-group">
+                  <label className="filter-label">Category</label>
+                  <select 
+                    value={selectedCategory} 
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="filter-select"
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map(category => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">Event Type</label>
+                  <select 
+                    value={selectedEventType} 
+                    onChange={(e) => setSelectedEventType(e.target.value)}
+                    className="filter-select"
+                  >
+                    <option value="">All Types</option>
+                    {eventTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">City</label>
+                  <select 
+                    value={selectedCity} 
+                    onChange={(e) => setSelectedCity(e.target.value)}
+                    className="filter-select"
+                  >
+                    <option value="">All Cities</option>
+                    {cities.map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">Date</label>
+                  <select 
+                    value={dateFilter} 
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="filter-select"
+                  >
+                    <option value="">All Dates</option>
+                    <option value="today">Today</option>
+                    <option value="tomorrow">Tomorrow</option>
+                    <option value="thisWeek">This Week</option>
+                    <option value="nextWeek">Next Week</option>
+                    <option value="thisMonth">This Month</option>
+                    <option value="past">Past Events</option>
+                  </select>
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">Availability</label>
+                  <select 
+                    value={availabilityFilter} 
+                    onChange={(e) => setAvailabilityFilter(e.target.value)}
+                    className="filter-select"
+                  >
+                    <option value="">All Events</option>
+                    <option value="available">Available Spots</option>
+                    <option value="almostFull">Almost Full (80%+)</option>
+                    <option value="full">Full</option>
+                    <option value="waitlist">Waitlist Available</option>
+                  </select>
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">Registration</label>
+                  <select 
+                    value={registrationFilter} 
+                    onChange={(e) => setRegistrationFilter(e.target.value)}
+                    className="filter-select"
+                  >
+                    <option value="">All Registration Types</option>
+                    {isLoggedIn && (
+                      <>
+                        <option value="registered">My Registered Events</option>
+                        <option value="pending">Pending Approval</option>
+                        <option value="waitlist">In Waitlist</option>
+                        <option value="notRegistered">Not Registered</option>
+                      </>
+                    )}
+                    <option value="approvalRequired">Approval Required</option>
+                    <option value="instantRegistration">Instant Registration</option>
+                    <option value="openRegistration">Open Registration</option>
+                    <option value="closedRegistration">Closed Registration</option>
+                  </select>
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">Sort By</label>
+                  <select 
+                    value={sortBy} 
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="filter-select"
+                  >
+                    <option value="date">Date (Earliest First)</option>
+                    <option value="dateDesc">Date (Latest First)</option>
+                    <option value="title">Title (A-Z)</option>
+                    <option value="category">Category</option>
+                    <option value="attendees">Most Popular</option>
+                    <option value="organizer">Organizer</option>
+                    <option value="availability">Most Available</option>
+                    <option value="registrationDeadline">Registration Deadline</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="filter-actions">
+                <button 
+                  onClick={clearFilters}
+                  className="btn btn-secondary"
+                >
+                  Clear All Filters
+                </button>
+                <span className="results-count">
+                  Showing {sortedEvents.length} of {activeEvents.length} events
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+        
         {activeEvents.length === 0 ? (
           <div className="empty-state">
             <h3>No active events found</h3>
             <p>Check back later for new events</p>
           </div>
+        ) : sortedEvents.length === 0 ? (
+          <div className="empty-state">
+            <h3>No events match your search</h3>
+            <p>Try adjusting your search terms or filters</p>
+            <button onClick={clearFilters} className="btn btn-primary">
+              Clear Filters
+            </button>
+          </div>
         ) : (
           <div className="grid">
-            {activeEvents.map((event) => {
+            {sortedEvents.map((event) => {
               const status = registrationStatus[event._id] || null;
               const isFull = fullEvents.has(event._id);
 
@@ -554,6 +1122,13 @@ const EventsPage = () => {
                     ) : isFull ? (
                       <button disabled className="btn btn-secondary">
                         Waiting for Vacancy
+                      </button>
+                    ) : !isLoggedIn ? (
+                      <button
+                        onClick={handleLoginToRegister}
+                        className="btn btn-primary"
+                      >
+                        Login to Register
                       </button>
                     ) : (
                       <button

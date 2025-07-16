@@ -86,6 +86,11 @@ const ManageEvents = () => {
     navigate(`/scan-attendees/${eventId}/${organizerId}`);
   };
 
+  // Navigate to edit event page
+  const goToEditEvent = (eventId) => {
+    navigate(`/edit-event/${eventId}`);
+  };
+
   // Returns a badge style object for event status
   const getStatusBadge = (status) => {
     const statusClasses = {
@@ -167,6 +172,36 @@ const ManageEvents = () => {
                     </span>
                   </div>
 
+                  {/* Always show pending approvals if any exist */}
+                  {(e.pendingApprovals?.length > 0 || e.pendingAttendees?.length > 0) && (
+                    <div className="pending-section-visible">
+                      <h4 className="details-title">
+                        Pending Approvals ({(e.pendingApprovals?.length || e.pendingAttendees?.length) || 0})
+                      </h4>
+                      <div className="pending-list">
+                        {(e.pendingApprovals || e.pendingAttendees || []).map((u, i) => (
+                          <div key={u._id || i} className="pending-item approval-item">
+                            <span className="pending-user">{u.name} ({u.email})</span>
+                            <div className="approval-actions">
+                              <button
+                                onClick={() => handleApprove(e._id, u._id)}
+                                className="btn btn-success btn-small"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleReject(e._id, u._id)}
+                                className="btn btn-danger btn-small"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Expandable event details */}
                   {expandedEvents.has(e._id) && (
                     <div className="event-details">
@@ -247,36 +282,6 @@ const ManageEvents = () => {
                         )}
                       </div>
 
-                      {/* Pending approvals section with action buttons */}
-                      {(e.pendingApprovals?.length > 0 || e.pendingAttendees?.length > 0) && (
-                        <div className="pending-section">
-                          <h4 className="details-title">
-                            Pending Approvals ({(e.pendingApprovals?.length || e.pendingAttendees?.length) || 0})
-                          </h4>
-                          <div className="pending-list">
-                            {(e.pendingApprovals || e.pendingAttendees || []).map((u, i) => (
-                              <div key={u._id || i} className="pending-item approval-item">
-                                <span className="pending-user">{u.name} ({u.email})</span>
-                                <div className="approval-actions">
-                                  <button
-                                    onClick={() => handleApprove(e._id, u._id)}
-                                    className="btn btn-success btn-small"
-                                  >
-                                    Approve
-                                  </button>
-                                  <button
-                                    onClick={() => handleReject(e._id, u._id)}
-                                    className="btn btn-danger btn-small"
-                                  >
-                                    Reject
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
                       {/* Waitlist section */}
                       {e.waitlist?.length > 0 && (
                         <div className="waitlist-section">
@@ -304,6 +309,14 @@ const ManageEvents = () => {
 
                   {e.status === 'active' && (
                     <>
+                      <button
+                        onClick={() => goToEditEvent(e._id)}
+                        className="btn btn-primary"
+                        title="Edit event details"
+                      >
+                        Edit Event
+                      </button>
+
                       <button
                         onClick={() => cancelEvent(e._id)}
                         disabled={loadingCancelIds.includes(e._id)}

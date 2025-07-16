@@ -136,6 +136,107 @@ exports.createEvent = async (req, res) => {
   }
 };
 
+exports.getEventById = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id)
+      .populate('organizer', 'name email')
+      .populate('attendees', 'name email')
+      .populate('pendingApprovals', 'name email')
+      .populate('waitlist', 'name email');
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Check if user is the organizer of this event
+    if (event.organizer._id.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized to view this event' });
+    }
+
+    res.json(formatEvent(event, true));
+  } catch (error) {
+    console.error('Error fetching event:', error);
+    res.status(500).json({ error: 'Failed to fetch event' });
+  }
+};
+
+exports.updateEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Check if user is the organizer of this event
+    if (event.organizer.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized to update this event' });
+    }
+
+    // Check if event is active (only active events can be edited)
+    if (event.status !== 'active') {
+      return res.status(400).json({ error: 'Only active events can be edited' });
+    }
+
+    const {
+      title, description, category, tags, date, endDate, startTime, endTime,
+      eventType, venueName, address, city, mapLink, onlineLink,
+      contactEmail, contactPhone, website, posterImage, logoImage, promoVideo,
+      maxAttendees, registrationDeadline, requireApproval, enableWaitlist
+    } = req.body;
+
+    // Validate required fields
+    if (!title || !description || !date || !startTime || !endTime || !eventType) {
+      return res.status(400).json({ error: 'Required fields are missing' });
+    }
+
+    // Validate date is in the future
+    if (new Date(date) <= new Date()) {
+      return res.status(400).json({ error: 'Event date must be in the future' });
+    }
+
+    // Update the event
+    const updatedEvent = await Event.findByIdAndUpdate(
+      req.params.id,
+      {
+        title,
+        description,
+        category,
+        tags,
+        date,
+        endDate,
+        startTime,
+        endTime,
+        eventType,
+        venueName,
+        address,
+        city,
+        mapLink,
+        onlineLink,
+        contactEmail,
+        contactPhone,
+        website,
+        posterImage,
+        logoImage,
+        promoVideo,
+        maxAttendees,
+        registrationDeadline,
+        requireApproval,
+        enableWaitlist
+      },
+      { new: true }
+    ).populate('organizer', 'name email');
+
+    res.json({
+      message: 'Event updated successfully',
+      event: formatEvent(updatedEvent)
+    });
+  } catch (error) {
+    console.error('Error updating event:', error);
+    res.status(500).json({ error: 'Failed to update event' });
+  }
+};
+
 exports.getAllEvents = async (req, res) => {
   try {
     const now = new Date();

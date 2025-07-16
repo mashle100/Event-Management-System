@@ -1,4 +1,3 @@
-
 // import React, { useEffect, useState } from 'react';
 // import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 // import { getToken, parseJwt } from './utils';
@@ -98,6 +97,7 @@ import Profile from './pages/Profile';
 import RequestOrganizer from './pages/RequestOrganizer';
 import AdminDashboard from './pages/AdminDashboard';
 import CreateEvent from './pages/CreateEvent';
+import EditEvent from './pages/EditEvent';
 import ManageEvents from './pages/ManageEvents';
 import EventsPage from './pages/EventsPage';
 import RegisteredEventsPage from './pages/RegisteredEventsPage';
@@ -107,10 +107,12 @@ import './App.css';
 const App = () => {
   const [loggedIn, setLoggedIn] = useState(!!getToken());
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = getToken();
     setUser(token ? parseJwt(token) : null);
+    setLoading(false);
   }, [loggedIn]);
 
   // Initialize theme on app load
@@ -133,49 +135,73 @@ const App = () => {
         <Route path="/login" element={<Home />} />
 
         <Route path="/profile" element={
-          loggedIn ? <Profile /> : <Navigate to="/login" />
+          loading ? <div>Loading...</div> : (
+            loggedIn ? <Profile /> : <Navigate to="/login" />
+          )
         }/>
 
-        <Route path="/events" element={<EventsPage />} />
+        <Route path="/events" element={<EventsPage user={user} />} />
 
         <Route path="/registered-events" element={
-          loggedIn ? <RegisteredEventsPage /> : <Navigate to="/login" />
+          loading ? <div>Loading...</div> : (
+            loggedIn ? <RegisteredEventsPage /> : <Navigate to="/login" />
+          )
         }/>
 
         <Route path="/request-organizer" element={
-          loggedIn && user?.role === 'attendee'
-            ? <RequestOrganizer />
-            : <Navigate to="/events" />
+          loading ? <div>Loading...</div> : (
+            loggedIn && user?.role === 'attendee'
+              ? <RequestOrganizer />
+              : <Navigate to="/events" />
+          )
         }/>
 
         <Route path="/create-event" element={
-          loggedIn && user?.role === 'organizer'
-            ? <CreateEvent />
-            : <Navigate to="/events" />
+          loading ? <div>Loading...</div> : (
+            loggedIn && user?.role === 'organizer'
+              ? <CreateEvent />
+              : <Navigate to="/events" />
+          )
+        }/>
+
+        <Route path="/edit-event/:id" element={
+          loading ? <div>Loading...</div> : (
+            loggedIn && user?.role === 'organizer'
+              ? <EditEvent />
+              : <Navigate to="/events" />
+          )
         }/>
 
         <Route path="/manage-events" element={
-          loggedIn && user?.role === 'organizer'
-            ? <ManageEvents />
-            : <Navigate to="/events" />
+          loading ? <div>Loading...</div> : (
+            loggedIn && user?.role === 'organizer'
+              ? <ManageEvents />
+              : <Navigate to="/events" />
+          )
         }/>
 
         <Route path="/scan-attendees/:eventId/:organizerId" element={
-          loggedIn && user?.role === 'organizer'
-            ? <QRScanner />
-            : <Navigate to="/events" />
+          loading ? <div>Loading...</div> : (
+            loggedIn && user?.role === 'organizer'
+              ? <QRScanner />
+              : <Navigate to="/events" />
+          )
         }/>
 
         <Route path="/admin" element={
-          loggedIn && user?.role === 'admin'
-            ? <AdminDashboard />
-            : <Navigate to="/events" />
+          loading ? <div>Loading...</div> : (
+            loggedIn && user?.role === 'admin'
+              ? <AdminDashboard />
+              : <Navigate to="/events" />
+          )
         }/>
 
         <Route path="/admin-events" element={
-          loggedIn && user?.role === 'admin'
-            ? <AdminDashboard />
-            : <Navigate to="/events" />
+          loading ? <div>Loading...</div> : (
+            loggedIn && user?.role === 'admin'
+              ? <AdminDashboard />
+              : <Navigate to="/events" />
+          )
         }/>
 
         <Route path="*" element={<div>404 Not Found</div>} />

@@ -1,13 +1,58 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import API from '../api/axios';
 
 const RequestOrganizer = () => {
-  const handleRequest = () => {
-    API.post('/user/request-organizer')
-      .then(res => alert(res.data.message || 'Request sent'))
-      .catch(err => alert(err.response?.data?.error || 'Error'));
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [requesting, setRequesting] = useState(false);
+
+  // Fetch user profile to check organizer request status
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const response = await API.get('/user/profile');
+        setUser(response.data);
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
+
+  const handleRequest = async () => {
+    setRequesting(true);
+    try {
+      const response = await API.post('/user/request-organizer');
+      alert(response.data.message || 'Request sent');
+      
+      // Update user state to reflect the change
+      setUser(prevUser => ({
+        ...prevUser,
+        organizerRequested: true
+      }));
+    } catch (error) {
+      alert(error.response?.data?.error || 'Error sending request');
+    } finally {
+      setRequesting(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="page-container">
+        <div className="container">
+          <div className="page-header">
+            <h1 className="page-title">Request Organizer Role</h1>
+            <p className="page-subtitle">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page-container">
@@ -43,16 +88,41 @@ const RequestOrganizer = () => {
               </li>
             </ul>
             
-            <button onClick={handleRequest} className="btn btn-primary" style={{ 
-              padding: '16px 32px', 
-              fontSize: '16px' 
-            }}>
-              Request Organizer Role
-            </button>
-            
-            <p style={{ marginTop: '20px', fontSize: '0.875rem', color: '#a0a0a0' }}>
-              Your request will be reviewed by our admin team and you'll be notified once approved.
-            </p>
+            {user?.organizerRequested ? (
+              <div className="waiting-approval">
+                <div className="status-badge status-pending" style={{ 
+                  display: 'inline-block',
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  borderRadius: '8px',
+                  marginBottom: '20px'
+                }}>
+                  ⏳ Waiting for Approval
+                </div>
+                <p style={{ marginTop: '20px', fontSize: '0.875rem', color: '#a0a0a0' }}>
+                  Your organizer request has been submitted and is being reviewed by our admin team. 
+                  You'll be notified once your request is approved.
+                </p>
+              </div>
+            ) : (
+              <>
+                <button 
+                  onClick={handleRequest} 
+                  disabled={requesting}
+                  className="btn btn-primary" 
+                  style={{ 
+                    padding: '16px 32px', 
+                    fontSize: '16px' 
+                  }}
+                >
+                  {requesting ? 'Sending Request...' : 'Request Organizer Role'}
+                </button>
+                
+                <p style={{ marginTop: '20px', fontSize: '0.875rem', color: '#a0a0a0' }}>
+                  Your request will be reviewed by our admin team and you'll be notified once approved.
+                </p>
+              </>
+            )}
           </div>
         </div>
       </div>
