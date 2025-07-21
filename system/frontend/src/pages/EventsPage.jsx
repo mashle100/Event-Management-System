@@ -10,6 +10,45 @@ const OPENWEATHER_API_KEY = process.env.REACT_APP_OPENWEATHER_API_KEY;
 // For Vite (uncomment if using Vite):
 // const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
 
+// Helper function to convert various image URLs to direct image URLs
+const convertImageUrl = (url) => {
+  if (!url) return url;
+  
+  // Check if it's a Google Drive sharing link
+  const driveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (driveMatch) {
+    const fileId = driveMatch[1];
+    // Try the thumbnail API first as it's more reliable for CORS
+    return `https://lh3.googleusercontent.com/d/${fileId}=s800`;
+  }
+  
+  // Handle other cloud storage URLs here if needed
+  // For now, return the original URL
+  return url;
+};
+
+// Helper function to validate if an image URL is likely to work
+const isValidImageUrl = (url) => {
+  if (!url) return false;
+  
+  // Check for common image extensions
+  const imageExtensions = /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i;
+  
+  // Check for direct image URLs or known image hosting services
+  const validPatterns = [
+    /^https?:\/\/.*\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i,
+    /imgur\.com/i,
+    /cloudinary\.com/i,
+    /amazonaws\.com/i,
+    /googleusercontent\.com/i,
+    /unsplash\.com/i,
+    /pixabay\.com/i,
+    /pexels\.com/i
+  ];
+  
+  return validPatterns.some(pattern => pattern.test(url));
+};
+
 
 // --- EventWeather component ---
 const EventWeather = ({ city, date }) => {
@@ -871,10 +910,45 @@ const EventsPage = ({ user }) => {
                   {event.posterImage && (
                     <div className="event-poster">
                       <img 
-                        src={event.posterImage} 
-                        alt="Event Poster"
+                        src={convertImageUrl(event.posterImage)} 
+                        alt={`${event.title} Poster`}
                         className="poster-image"
+                        onError={(e) => {
+                          // Try fallback URL if it's a Google Drive link
+                          if (event.posterImage.includes('drive.google.com') && !e.target.dataset.fallbackTried) {
+                            e.target.dataset.fallbackTried = 'true';
+                            const driveMatch = event.posterImage.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+                            if (driveMatch) {
+                              const fileId = driveMatch[1];
+                              e.target.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w400`;
+                              return;
+                            }
+                          }
+                          
+                          // Hide the poster container if all attempts fail
+                          const posterContainer = e.target.parentNode;
+                          if (posterContainer) {
+                            posterContainer.style.display = 'none';
+                          }
+                        }}
+                        onLoad={() => {
+                          // Image loaded successfully - no action needed
+                        }}
+                        style={{ 
+                          backgroundColor: 'var(--secondary-color)',
+                          minHeight: '200px'
+                        }}
                       />
+                    </div>
+                  )}
+                  
+                  {/* Fallback placeholder when no poster image */}
+                  {!event.posterImage && (
+                    <div className="event-poster-placeholder">
+                      <div className="placeholder-content">
+                        <span className="placeholder-icon">🎫</span>
+                        <span className="placeholder-text">No Image</span>
+                      </div>
                     </div>
                   )}
                   

@@ -5,8 +5,6 @@ const Profile = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({});
   const [stats, setStats] = useState({});
   const [eventHistory, setEventHistory] = useState([]);
   const [error, setError] = useState('');
@@ -27,7 +25,6 @@ const Profile = () => {
     try {
       const res = await API.get('/user/profile');
       setProfile(res.data);
-      setEditForm(res.data);
     } catch (err) {
       setError('Failed to load profile');
       console.error(err);
@@ -182,39 +179,6 @@ const Profile = () => {
     }
   };
 
-  const handleEdit = () => {
-    setIsEditing(true);
-    setEditForm(profile);
-  };
-
-  const handleSave = async () => {
-    try {
-      setLoading(true);
-      const res = await API.put('/user/profile', editForm);
-      setProfile(res.data);
-      setIsEditing(false);
-      setSuccess('Profile updated successfully!');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      setError('Failed to update profile');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setEditForm(profile);
-  };
-
-  const handleInputChange = (field, value) => {
-    setEditForm(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
   // Utility function to determine event status for display
   const getEventDisplayStatus = (event) => {
     const eventDate = new Date(event.date);
@@ -329,54 +293,16 @@ const Profile = () => {
     <div className="personal-info">
       <div className="section-header">
         <h3>Personal Information</h3>
-        {!isEditing && (
-          <button className="btn btn-primary" onClick={handleEdit}>
-            Edit Profile
-          </button>
-        )}
       </div>
 
-      {isEditing ? (
-        <div className="edit-form">
-          <div className="form-group">
-            <label className="form-label">Name</label>
-            <input
-              type="text"
-              value={editForm.name || ''}
-              onChange={(e) => handleInputChange('name', e.target.value)}
-              className="form-input"
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Email</label>
-            <input
-              type="email"
-              value={editForm.email || ''}
-              onChange={(e) => handleInputChange('email', e.target.value)}
-              className="form-input"
-              disabled
-            />
-            <small className="form-help">Email cannot be changed</small>
-          </div>
-          <div className="form-actions">
-            <button className="btn btn-primary" onClick={handleSave}>
-              Save Changes
-            </button>
-            <button className="btn btn-secondary" onClick={handleCancel}>
-              Cancel
-            </button>
-          </div>
+      <div className="profile-details">
+        <div className="detail-item">
+          <strong>Name:</strong> {profile.name}
         </div>
-      ) : (
-        <div className="profile-details">
-          <div className="detail-item">
-            <strong>Name:</strong> {profile.name}
-          </div>
-          <div className="detail-item">
-            <strong>Email:</strong> {profile.email}
-          </div>
+        <div className="detail-item">
+          <strong>Email:</strong> {profile.email}
         </div>
-      )}
+      </div>
     </div>
   );
 

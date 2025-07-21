@@ -109,8 +109,24 @@ const CreateEvent = () => {
                   onChange={handleChange} 
                   disabled={loading}
                 >
-                  <option value="Education">Education</option>
+                  <option value="">Select Category</option>
+                  <option value="Tech">Tech</option>
+                  <option value="Sports">Sports</option>
+                  <option value="Cultural">Cultural</option>
+                  <option value="Workshop">Workshop</option>
+                  <option value="Seminar">Seminar</option>
                   <option value="Business">Business</option>
+                  <option value="Education">Education</option>
+                  <option value="Health">Health</option>
+                  <option value="Music">Music</option>
+                  <option value="Art">Art</option>
+                  <option value="Food">Food</option>
+                  <option value="Fashion">Fashion</option>
+                  <option value="Gaming">Gaming</option>
+                  <option value="Social">Social</option>
+                  <option value="Networking">Networking</option>
+                  <option value="Conference">Conference</option>
+                  <option value="Training">Training</option>
                   <option value="Other">Other</option>
                 </select>
               </div>
@@ -345,8 +361,14 @@ const CreateEvent = () => {
                 value={event.posterImage}
                 onChange={handleChange}
                 disabled={loading}
-                placeholder="https://example.com/poster.jpg"
+                placeholder="https://example.com/image.jpg or Google Drive sharing link"
+                type="url"
               />
+              <small className="form-help">
+                Enter a direct image URL (jpg, png, gif, webp) from image hosting services like Imgur, Cloudinary, or AWS. 
+                Google Drive links may have display limitations due to sharing restrictions. 
+                For best results, use dedicated image hosting services. Leave empty if no poster image.
+              </small>
             </div>
 
             <div className="form-group">
