@@ -18,8 +18,8 @@ const convertImageUrl = (url) => {
   const driveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
   if (driveMatch) {
     const fileId = driveMatch[1];
-    // Try the thumbnail API first as it's more reliable for CORS
-    return `https://lh3.googleusercontent.com/d/${fileId}=s800`;
+    // Use the direct download URL format for Google Drive
+    return `https://drive.google.com/uc?export=view&id=${fileId}`;
   }
   
   // Handle other cloud storage URLs here if needed
@@ -920,7 +920,7 @@ const EventsPage = ({ user }) => {
                             const driveMatch = event.posterImage.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
                             if (driveMatch) {
                               const fileId = driveMatch[1];
-                              e.target.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w400`;
+                              e.target.src = `https://lh3.googleusercontent.com/d/${fileId}=s800`;
                               return;
                             }
                           }
